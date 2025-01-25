@@ -14,7 +14,7 @@ class MEXCExchange(BaseExchange):
     def fetch_order_book(self, symbol):
         """Fetch the full spot order book for a given symbol."""
         try:
-            return self.exchange.fetch_order_book(symbol, params={"limit": 500})
+            return self.exchange.fetch_order_book(symbol, params={"limit": 100})
         except Exception as e:
             print(f"Error fetching spot order book from MEXC: {e}")
             return {"bids": [], "asks": []}
