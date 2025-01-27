@@ -39,7 +39,7 @@ if __name__ == "__main__":
 
     # Initialize exchanges dynamically
     exchanges = {
-        # "binance": BinanceExchange(credentials["binance"]["apiKey"], credentials["binance"]["secret"]),
+        "binance": BinanceExchange(credentials["binance"]["apiKey"], credentials["binance"]["secret"]),
         "mexc": MEXCExchange(credentials["mexc"]["apiKey"], credentials["mexc"]["secret"]),
     }
 
