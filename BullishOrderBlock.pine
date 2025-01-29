@@ -1,1 +1,47 @@
-BullishOrderBlock
+//@version=5
+indicator("Bullish Order Block Detector", overlay=true)
+
+// Input parameters
+impulseMoveThreshold = input.float(0.03, title="Impulse Move Threshold (%)", minval=0.01)  // Minimum 3% price move for an impulsive move
+lookbackPeriod = input.int(50, title="Lookback Period for Volume Threshold", minval=10)  // Lookback period for volume calculation
+
+// Custom function to calculate percentile
+f_percentile(array, percentile) =>
+    size = array.size(array)
+    if size == 0
+        na
+    else
+        // Create a sorted copy of the array
+        sortedArray = array.copy(array)
+        array.sort(sortedArray)
+        // Calculate the index for the percentile
+        index = (percentile / 100) * (size - 1)
+        intIndex = math.floor(index)
+        frac = index - intIndex
+        // Interpolate if necessary
+        if frac == 0
+            array.get(sortedArray, intIndex)
+        else
+            array.get(sortedArray, intIndex) * (1 - frac) + array.get(sortedArray, intIndex + 1) * frac
+
+// Calculate volume threshold (top 25% volume)
+var float[] volumeArray = array.new_float(lookbackPeriod, 0)
+if barstate.islast
+    for i = 0 to lookbackPeriod - 1
+        array.set(volumeArray, i, volume[i])
+volumePercentile = f_percentile(volumeArray, 75)  // 75th percentile (top 25% volume)
+
+// Detect bullish order blocks
+isImpulseMove = (close - open) / open >= impulseMoveThreshold  // Check for an impulsive move to the upside
+isConsolidation = (high[1] - low[1]) / low[1] <= 0.005  // Check if the previous candle is a base (consolidation) with a small range
+isHighVolume = volume >= volumePercentile  // Check for high volume at the order block
+
+// Condition for bullish order block
+bullishOrderBlock = isImpulseMove and isConsolidation and isHighVolume
+
+// Plot bullish order blocks
+if bullishOrderBlock
+    label.new(bar_index, low[1], text="Bullish OB", color=color.green, textcolor=color.white, style=label.style_label_down, size=size.small)
+
+// Optional: Highlight the order block zone
+bgcolor(bullishOrderBlock ? color.new(color.green, 90) : na, title="Bullish Order Block Zone")
