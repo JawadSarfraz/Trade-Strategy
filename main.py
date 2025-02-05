@@ -1,152 +1,163 @@
-# import sys
-# import os
-# import threading
-
-# # Add the src directory to Python's module search path
-# sys.path.append(os.path.join(os.path.dirname(__file__), "src"))
-
-# # Import utilities and exchange classes
-# from src.utils.credentials import load_credentials
-# from src.exchanges.binance import BinanceExchange
-# from src.exchanges.mexc import MEXCExchange
-
-# def fetch_order_books(trading_pair, exchange_name, exchange, results):
-#     """Fetch and analyze the order book from the specified exchange."""
-#     try:
-#         spot_order_book = exchange.fetch_order_book(trading_pair)
-#         futures_order_book = exchange.fetch_futures_order_book(trading_pair)
-#         results.update({f"{exchange_name}_spot_order_book": spot_order_book})
-#         results.update({f"{exchange_name}_futures_order_book": futures_order_book})
-#     except Exception as e:
-#         print(f"Error fetching order book from {exchange_name}: {e}")
-
-# def display_top_10(order_book, order_type):
-#     """Display the top 10 orders based on volume."""
-#     orders = order_book.get(order_type, [])
-#     # Sort by volume in descending order
-#     sorted_orders = sorted(orders, key=lambda x: -float(x[1]))
-#     top_10 = sorted_orders[:10]
-#     for price, volume in top_10:
-#         print(f"Price: {price}, Volume: {volume:.2f}")
-
-# if __name__ == "__main__":
-#     # Specify the trading pair
-#     trading_pair_input = input("Enter the trading pair (e.g., btc): ").strip().upper()
-#     trading_pair = f"{trading_pair_input}/USDT"
-
-#     # Load API credentials
-#     credentials = load_credentials()
-
-#     # Initialize exchanges dynamically
-#     exchanges = {
-#         "binance": BinanceExchange(credentials["binance"]["apiKey"], credentials["binance"]["secret"]),
-#         "mexc": MEXCExchange(credentials["mexc"]["apiKey"], credentials["mexc"]["secret"]),
-#     }
-
-#     results = {}
-
-#     # Create threads for each exchange
-#     threads = []
-#     for name, exchange in exchanges.items():
-#         threads.append(threading.Thread(target=fetch_order_books, args=(trading_pair, name, exchange, results)))
-
-#     # Start threads
-#     for thread in threads:
-#         thread.start()
-
-#     # Wait for threads to complete
-#     for thread in threads:
-#         thread.join()
-
-#     # Process and display results for each exchange
-#     for name, exchange in exchanges.items():
-#         print(f"\n--- {name.upper()} Spot Order Book ---")
-#         spot_order_book = results.get(f"{name}_spot_order_book", {})
-#         if spot_order_book:
-#             print("\nTop 10 Buy Orders (Bids):")
-#             display_top_10(spot_order_book, "bids")
-
-#             print("\nTop 10 Sell Orders (Asks):")
-#             display_top_10(spot_order_book, "asks")
-#         else:
-#             print("No Spot Order Book data available.")
-
-#         print(f"\n--- {name.upper()} Futures Order Book ---")
-#         futures_order_book = results.get(f"{name}_futures_order_book", {})
-#         if futures_order_book:
-#             print("\nTop 10 Buy Orders (Bids):")
-#             display_top_10(futures_order_book, "bids")
-
-#             print("\nTop 10 Sell Orders (Asks):")
-#             display_top_10(futures_order_book, "asks")
-#         else:
-#             print("No Futures Order Book data available.")
-import time
+import json
 import threading
-from src.exchanges.websockets import WebSocketManager
-from src.trading.order_book_tracker import OrderBookTracker
+import websocket
+import time
 
-def monitor_order_books(order_book_tracker):
-    """
-    Periodically print the latest order book summary.
-    Detects large orders and prints key insights.
-    """
-    while True:
-        time.sleep(10)  # Update every 10 seconds
-        print("\n--- Live Order Book Update ---")
+# Define order books storage
+order_books = {
+    "binance": {"bids": [], "asks": []},
+    "mexc": {"bids": [], "asks": []}
+}
+
+# Set threshold for large orders (modify based on market conditions)
+LARGE_ORDER_THRESHOLD = 0.1  # Example: 10 BTC
+
+# Exchange WebSocket URLs
+EXCHANGE_WS_URLS = {
+    "binance": "wss://stream.binance.com:9443/ws/btcusdt@depth",
+    "mexc": "wss://wbs.mexc.com/ws"
+}
+
+
+### 🔹 WebSocket Handlers
+def on_message(exchange, ws, message):
+    """Handles WebSocket messages, processes order book data."""
+    global order_books
+
+    try:
+        print(f"\n[DEBUG] Raw WebSocket Message from {exchange}: {message}")  # Debugging
+
+        data = json.loads(message)
+
+        # Process Binance order book update
+        if exchange == "binance":
+            bids = data.get("bids", [])
+            asks = data.get("asks", [])
         
-        for exchange in ["binance", "mexc"]:
-            order_book = order_book_tracker.get_order_book(exchange)
+        # Process MEXC order book update
+        elif exchange == "mexc":
+            bids = data.get("data", {}).get("bids", [])
+            asks = data.get("data", {}).get("asks", [])
+        
+        else:
+            print(f"[ERROR] Unknown exchange: {exchange}")
+            return
 
-            if order_book["bids"] and order_book["asks"]:
-                top_bid = max(order_book["bids"], key=lambda x: float(x[0]))
-                top_ask = min(order_book["asks"], key=lambda x: float(x[0]))
-                spread = float(top_ask[0]) - float(top_bid[0])
+        # Convert strings to floats and store
+        order_books[exchange]["bids"] = [(float(price), float(volume)) for price, volume in bids if float(volume) > 0]
+        order_books[exchange]["asks"] = [(float(price), float(volume)) for price, volume in asks if float(volume) > 0]
 
-                print(f"\n[{exchange.upper()}] Order Book Snapshot")
-                print(f"Top Bid: {top_bid}")
-                print(f"Top Ask: {top_ask}")
-                print(f"Spread: {spread:.5f} USDT")
+        # Sort order book (Descending for Bids, Ascending for Asks)
+        order_books[exchange]["bids"].sort(key=lambda x: -x[0])
+        order_books[exchange]["asks"].sort(key=lambda x: x[0])
 
-                detect_large_orders(order_book, exchange)
-            else:
-                print(f"[{exchange.upper()}] No recent order book data.")
+        # Print Order Book for Debugging
+        print(f"\n[DEBUG] {exchange.upper()} Order Book (Bids & Asks):")
+        print("  Bids:", order_books[exchange]["bids"][:5])
+        print("  Asks:", order_books[exchange]["asks"][:5])
 
-def detect_large_orders(order_book, exchange):
-    """
-    Identify large buy and sell orders in the order book.
-    """
-    threshold = 50000  # Set large order threshold (modify as needed)
-    
-    large_bids = [bid for bid in order_book["bids"] if float(bid[1]) > threshold]
-    large_asks = [ask for ask in order_book["asks"] if float(ask[1]) > threshold]
+        # Display order book update
+        print(f"\n--- {exchange.upper()} Order Book Update ---")
+        display_top_orders(exchange)
+
+        # Debugging: Check Large Order Detection
+        detect_large_orders(exchange)
+
+    except Exception as e:
+        print(f"[ERROR] {exchange} WebSocket message processing error: {e}")
+
+
+
+def on_open(exchange, ws):
+    """Handles WebSocket connection opening and sends subscription request."""
+    print(f"[CONNECTED] {exchange.upper()} WebSocket")
+
+    if exchange == "binance":
+        payload = {
+            "method": "SUBSCRIBE",
+            "params": ["btcusdt@depth"],
+            "id": 1
+        }
+        ws.send(json.dumps(payload))
+
+    elif exchange == "mexc":
+        payload = {
+            "method": "sub.depth",
+            "params": {
+                "symbol": "BTC_USDT",
+                "limit": 50
+            }
+        }
+        ws.send(json.dumps(payload))
+
+
+def on_error(exchange, ws, error):
+    """Handles WebSocket errors."""
+    print(f"[ERROR] {exchange.upper()} WebSocket Error: {error}")
+
+
+def on_close(exchange, ws, close_status_code, close_msg):
+    """Handles WebSocket closure and attempts reconnection."""
+    print(f"[DISCONNECTED] {exchange.upper()} WebSocket. Reconnecting in 5 seconds...")
+    time.sleep(5)
+    start_websocket(exchange)
+
+
+### 🔹 Utility Functions
+def display_top_orders(exchange):
+    """Prints the top 5 buy and sell orders."""
+    print("Top 5 Buy Orders (Bids):")
+    for price, volume in order_books[exchange]["bids"][:5]:
+        print(f"  Price: {price}, Volume: {volume}")
+
+    print("\nTop 5 Sell Orders (Asks):")
+    for price, volume in order_books[exchange]["asks"][:5]:
+        print(f"  Price: {price}, Volume: {volume}")
+    print("-" * 40)
+
+
+def detect_large_orders(exchange):
+    """Detects large buy and sell orders."""
+    large_bids = [bid for bid in order_books[exchange]["bids"] if bid[1] > LARGE_ORDER_THRESHOLD]
+    large_asks = [ask for ask in order_books[exchange]["asks"] if ask[1] > LARGE_ORDER_THRESHOLD]
 
     if large_bids or large_asks:
-        print(f"\n[ALERT] Large Orders Detected on {exchange.upper()}:")
-        if large_bids:
-            print("🔹 Large Buy Orders:")
-            for bid in large_bids:
-                print(f"  Price: {bid[0]}, Volume: {bid[1]}")
-        if large_asks:
-            print("🔻 Large Sell Orders:")
-            for ask in large_asks:
-                print(f"  Price: {ask[0]}, Volume: {ask[1]}")
+        print(f"\n🚨 [ALERT] Large Orders Detected on {exchange.upper()} 🚨")
 
+    if large_bids:
+        print("  🔵 Large Buy Orders:")
+        for price, volume in large_bids:
+            print(f"    Price: {price}, Volume: {volume}")
+
+    if large_asks:
+        print("  🔴 Large Sell Orders:")
+        for price, volume in large_asks:
+            print(f"    Price: {price}, Volume: {volume}")
+
+
+def start_websocket(exchange):
+    """Starts WebSocket connection for a given exchange."""
+    ws = websocket.WebSocketApp(
+        EXCHANGE_WS_URLS[exchange],
+        on_message=lambda ws, msg: on_message(exchange, ws, msg),
+        on_open=lambda ws: on_open(exchange, ws),
+        on_error=lambda ws, err: on_error(exchange, ws, err),
+        on_close=lambda ws, code, msg: on_close(exchange, ws, code, msg)
+    )
+    ws.run_forever()
+
+
+### 🔹 Main Execution
 if __name__ == "__main__":
     trading_pair = "BTC/USDT"
 
-    # Start WebSockets for live order book tracking
-    ws_manager = WebSocketManager()
-    ws_manager.start_all(trading_pair)
+    # Start WebSockets for all exchanges in separate threads
+    threads = []
+    for exchange in EXCHANGE_WS_URLS.keys():
+        t = threading.Thread(target=start_websocket, args=(exchange,))
+        t.start()
+        threads.append(t)
 
-    # Initialize Order Book Tracker
-    order_book_tracker = OrderBookTracker()
-
-    # Start monitoring in a separate thread
-    monitor_thread = threading.Thread(target=monitor_order_books, args=(order_book_tracker,))
-    monitor_thread.daemon = True
-    monitor_thread.start()
-
-    # Keep the script running
-    while True:
-        time.sleep(1)
+    # Keep script running
+    for t in threads:
+        t.join()
