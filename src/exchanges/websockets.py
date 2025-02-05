@@ -4,11 +4,9 @@ import websocket
 import time
 import requests
 
-# MEXC WebSocket URLs
+# WebSocket URLs
 MEXC_SPOT_WS_URL = "wss://wbs.mexc.com/ws"
 MEXC_FUTURES_WS_URL = "wss://contract.mexc.com/ws"
-
-# Binance WebSocket URL format
 BINANCE_WS_URL = "wss://stream.binance.com:9443/ws/{symbol}@depth"
 
 class WebSocketManager:
@@ -29,7 +27,10 @@ class WebSocketManager:
 
         def on_message(ws, message):
             data = json.loads(message)
-            print(f"\n[Binance Order Book Update] {data}")
+            if "b" in data and "a" in data:
+                bids = data.get("b", [])[:5]  # Top 5 bids
+                asks = data.get("a", [])[:5]  # Top 5 asks
+                print(f"\n[Binance Order Book Update] \nBids: {bids}\nAsks: {asks}")
 
         def on_error(ws, error):
             print(f"[Binance WS Error] {error}")
@@ -44,14 +45,14 @@ class WebSocketManager:
 
     def start_mexc_ws(self, trading_pair="BTC/USDT"):
         """Connect to MEXC WebSocket for order book updates."""
-        symbol = trading_pair.replace("/", "_")  # Convert BTC/USDT → BTC_USDT
+        symbol = trading_pair.replace("/", "")  # Convert BTC/USDT → BTCUSDT (MEXC uses no underscore)
         url = MEXC_FUTURES_WS_URL if self.is_futures else MEXC_SPOT_WS_URL
 
         def on_open(ws):
-            """Send subscription message on connection open."""
+            """Send correct subscription message."""
             payload = {
                 "method": "SUBSCRIPTION",
-                "params": [f"spot@public.limit.depth.v3.api@{symbol}"],
+                "params": [f"spot@public.bookTicker.v3.api@{symbol}"],  # FIXED Subscription Format
                 "id": 1
             }
             ws.send(json.dumps(payload))
@@ -60,7 +61,9 @@ class WebSocketManager:
         def on_message(ws, message):
             data = json.loads(message)
             if "data" in data:
-                print(f"\n[MEXC Order Book Update] {data['data']}")
+                bids = data["data"].get("bids", [])[:5]
+                asks = data["data"].get("asks", [])[:5]
+                print(f"\n[MEXC Order Book Update] \nBids: {bids}\nAsks: {asks}")
             else:
                 print(f"[DEBUG] Raw WebSocket Message from MEXC: {data}")
 
