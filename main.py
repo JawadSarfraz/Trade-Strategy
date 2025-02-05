@@ -9,4 +9,5 @@ if __name__ == "__main__":
     ws_manager.start_all(trading_pair)
 
     while True:
-        time.sleep(10)
+        time.sleep(10)  # Keeps the script running
+        

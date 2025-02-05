@@ -1,34 +1,68 @@
-import threading
+import json
+from tabulate import tabulate
 
 class OrderBookTracker:
-    """Tracks real-time order book updates from WebSockets."""
+    """Tracks and processes order book updates for multiple exchanges."""
 
     def __init__(self):
         self.order_books = {
             "binance": {"bids": [], "asks": []},
             "mexc": {"bids": [], "asks": []}
         }
-        self.lock = threading.Lock()  # Ensure thread safety
 
     def update_order_book(self, exchange, data):
-        """Update order book state with latest WebSocket data."""
-        with self.lock:
+        """Processes and updates the order book for the given exchange."""
+        try:
             if exchange == "binance":
-                self.order_books["binance"]["bids"] = data.get("b", [])
-                self.order_books["binance"]["asks"] = data.get("a", [])
+                bids = data.get("b", [])[:10]  # Extract top 10 bids
+                asks = data.get("a", [])[:10]  # Extract top 10 asks
+
             elif exchange == "mexc":
-                self.order_books["mexc"]["bids"] = data.get("bids", [])
-                self.order_books["mexc"]["asks"] = data.get("asks", [])
+                # Extract MEXC bids/asks from WebSocket response
+                print(data)
+                exit()
+                if "d" in data and isinstance(data["d"], dict):
+                    bid_price = data["d"].get("b")
+                    bid_volume = data["d"].get("B")
+                    ask_price = data["d"].get("a")
+                    ask_volume = data["d"].get("A")
 
-    def get_order_book(self, exchange):
-        """Retrieve latest order book for an exchange."""
-        with self.lock:
-            return self.order_books.get(exchange, {"bids": [], "asks": []})
+                    if bid_price and bid_volume and ask_price and ask_volume:
+                        bids = [[bid_price, bid_volume]]
+                        asks = [[ask_price, ask_volume]]
+                    else:
+                        print(f"[MEXC Warning] Incomplete order book data received. Skipping update.")
+                        return
+                else:
+                    print(f"[MEXC Error] Unexpected data format: {json.dumps(data, indent=2)}")
+                    return
 
-    def print_summary(self):
-        """Print a summary of current order book state."""
-        with self.lock:
-            for exchange, book in self.order_books.items():
-                print(f"\n[{exchange.upper()}] Order Book Snapshot")
-                print(f"Top 3 Bids: {book['bids'][:3]}")
-                print(f"Top 3 Asks: {book['asks'][:3]}")
+
+            # Convert prices and volumes to float and filter out zero-volume orders
+            self.order_books[exchange]["bids"] = [
+                (float(price), float(volume)) for price, volume in bids if float(volume) > 0
+            ]
+            self.order_books[exchange]["asks"] = [
+                (float(price), float(volume)) for price, volume in asks if float(volume) > 0
+            ]
+
+            # Sort order book (Bids: Descending, Asks: Ascending)
+            self.order_books[exchange]["bids"].sort(key=lambda x: -x[0])
+            self.order_books[exchange]["asks"].sort(key=lambda x: x[0])
+
+            self.display_order_book(exchange)
+
+        except Exception as e:
+            print(f"[ERROR] {exchange} Order Book Processing Error: {e}")
+
+    def display_order_book(self, exchange):
+        """Displays the formatted order book for an exchange."""
+        print(f"\n--- {exchange.upper()} Order Book ---")
+        table_data = []
+        for i in range(max(len(self.order_books[exchange]["bids"]), len(self.order_books[exchange]["asks"]))):
+            bid_price, bid_volume = self.order_books[exchange]["bids"][i] if i < len(self.order_books[exchange]["bids"]) else ("", "")
+            ask_price, ask_volume = self.order_books[exchange]["asks"][i] if i < len(self.order_books[exchange]["asks"]) else ("", "")
+            table_data.append([bid_price, bid_volume, ask_price, ask_volume])
+
+        headers = ["Bid Price", "Bid Volume", "Ask Price", "Ask Volume"]
+        print(tabulate(table_data, headers=headers, tablefmt="grid"))
