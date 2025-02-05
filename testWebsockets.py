@@ -1,19 +1,21 @@
-import websocket
-import json
+import time
+from src.exchanges.websockets import WebSocketManager
 
-def on_message(ws, message):
-    print(f"[MESSAGE] {message}")
+if __name__ == "__main__":
+    trading_pair = "BTC/USDT"  # Changeable
+    print(f"\nStarting WebSocket for {trading_pair}...")
 
-def on_open(ws):
-    print("[CONNECTED] WebSocket is open")
-    payload = {
-        "method": "SUBSCRIBE",
-        "params": ["btcusdt@depth"],
-        "id": 1
-    }
-    ws.send(json.dumps(payload))
+    # Initialize WebSocket Manager for Spot and Futures separately
+    ws_manager_spot = WebSocketManager(is_futures=False)
+    ws_manager_futures = WebSocketManager(is_futures=True)
 
-ws = websocket.WebSocketApp("wss://stream.binance.com:9443/ws",
-                            on_message=on_message,
-                            on_open=on_open)
-ws.run_forever()
+    # Start WebSockets for both Spot & Futures
+    ws_manager_spot.start_all(trading_pair)
+    ws_manager_futures.start_all(trading_pair)
+
+    # Keep the script running
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("\n[EXIT] WebSocket connections closed.")
