@@ -4,11 +4,15 @@ import websocket
 import time
 from src.trading.order_book_tracker import OrderBookTracker
 
+MEXC_SPOT_WS_URL = "wss://wbs.mexc.com/ws"
+MEXC_FUTURES_WS_URL = "wss://contract.mexc.com/ws"
+
 class WebSocketManager:
     """Handles WebSocket connections for Binance & MEXC order books."""
 
-    def __init__(self):
+    def __init__(self, is_futures=False):
         self.order_book_tracker = OrderBookTracker()
+        self.is_futures = is_futures  # Toggle between spot and futures
         self.exchanges = {
             "binance": self.start_binance_ws,
             "mexc": self.start_mexc_ws
@@ -38,21 +42,34 @@ class WebSocketManager:
     def start_mexc_ws(self, trading_pair="BTC/USDT"):
         """Connect to MEXC WebSocket for order book updates."""
         symbol = trading_pair.replace("/", "_")  # Convert BTC/USDT → BTC_USDT
-        url = "wss://wbs.mexc.com/ws"
+        url = MEXC_FUTURES_WS_URL if self.is_futures else MEXC_SPOT_WS_URL
 
         def on_open(ws):
             """Send subscription message on connection open."""
-            payload = {
-                "method": "SUBSCRIPTION",
-                "params": [f"spot@public.limit.depth.v3.api@{symbol}"],
-                "id": 1
-            }
+            if self.is_futures:
+                payload = {
+                    "method": "sub.depth",
+                    "param": {
+                        "symbol": symbol,
+                        "depth": 10
+                    }
+                }
+            else:
+                payload = {
+                    "method": "SUBSCRIPTION",
+                    "params": [f"spot@public.depth.v3.api@{symbol}"],
+                    "id": 1
+                }
+
             ws.send(json.dumps(payload))
+            print(f"[MEXC WS] Subscribed to {'Futures' if self.is_futures else 'Spot'} Order Book for {trading_pair}")
 
         def on_message(ws, message):
             data = json.loads(message)
             if "data" in data:
                 self.order_book_tracker.update_order_book("mexc", data["data"])
+            else:
+                print(f"[DEBUG] Raw WebSocket Message from MEXC: {data}")
 
         def on_error(ws, error):
             print(f"[MEXC WS Error] {error}")
