@@ -12,23 +12,31 @@ class OrderBookTracker:
         }
 
     def update_order_book(self, exchange, data):
-        """Updates the order book with the latest data from Binance."""
+        """Processes incoming WebSocket order book data."""
         try:
-            # Ensure 'b' (bids) and 'a' (asks) keys exist in the data
-            if "b" in data and "a" in data:
-                self.order_book[exchange]["bids"] = [(float(price), float(volume)) for price, volume in data["b"]]
-                self.order_book[exchange]["asks"] = [(float(price), float(volume)) for price, volume in data["a"]]
+            bids = data.get("b", [])[:5]  # Top 5 bids
+            asks = data.get("a", [])[:5]  # Top 5 asks
+            
+            # Convert to structured format
+            formatted_data = {
+                "Bid Price": [float(b[0]) for b in bids],
+                "Bid Volume": [float(b[1]) for b in bids],
+                "Ask Price": [float(a[0]) for a in asks],
+                "Ask Volume": [float(a[1]) for a in asks]
+            }
 
-                # Debugging: Verify if data is actually stored
-                print(f"\n--- {exchange.upper()} Order Book ---")
-                df = pd.DataFrame(self.order_book[exchange]["bids"][:5], columns=["Bid Price", "Bid Volume"])
-                df["Ask Price"], df["Ask Volume"] = zip(*self.order_book[exchange]["asks"][:5])
-                print(df.to_string(index=False))  # Pretty print order book
-            else:
-                print(f"[ERROR] Unexpected data format from {exchange}: {data}")
+            # Convert to DataFrame for better handling
+            df = pd.DataFrame(formatted_data)
+
+            # Store in rolling buffer
+            self.order_book_buffer.append(df)
+
+            print("\n--- BINANCE Order Book ---")
+            print(df)
 
         except Exception as e:
             print(f"[ERROR] Order Book Update Failed: {e}")
+
 
 
     def display_order_book(self):
