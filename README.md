@@ -31,7 +31,14 @@ This project collects, processes, and analyzes order book data from Binance usin
 
 - **Formula**: `CVD = Σ (Bid Volume - Ask Volume)`
 - Aggregates volume deltas over time.
+- **Stores CVD values in `cvd_data.json`** for further analysis.
 - Indicates **buying vs. selling dominance** in the market.
+
+### 4️⃣ **CVD Analysis & Plotting** (`cvd_analysis.py`)
+
+- Reads **`cvd_data.json`** to visualize the CVD trend.
+- **Manual execution required**: CVD is plotted separately after data collection.
+- Helps analyze cumulative volume trends over time.
 
 ---
 
@@ -73,3 +80,4 @@ Bid Price   Bid Volume   Ask Price   Ask Volume
 - ✅ Store **CVD values** for historical analysis
 - ✅ Use **CVD for trading signals** (buy/sell pressure)
 - ✅ **Plot CVD trends** to visualize market dominance
+- 🔜 Add Order Flow Imbalance Detection for deeper market insights
