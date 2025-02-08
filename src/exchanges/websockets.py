@@ -13,8 +13,9 @@ class WebSocketManager:
 
     def __init__(self):
         self.order_book_tracker = OrderBookTracker()
-        self.order_book_analysis = OrderBookAnalysis()
+        self.order_book_analysis = OrderBookAnalysis(self.order_book_tracker.order_book_buffer)  # Pass buffer
         self.threads = []
+        
 
     def start_binance_ws(self, trading_pair="BTC/USDT"):
         """Connects to Binance WebSocket and receives order book updates."""
@@ -31,7 +32,14 @@ class WebSocketManager:
                 
                 # Compute bid-ask spread after updating the order book
                 order_book = self.order_book_tracker.get_order_book()
+                print(order_book)
+                
                 self.order_book_analysis.compute_bid_ask_spread(order_book)
+
+                    # 🛠️ Compute CVD (New Addition)
+                print("[DEBUG] Calling compute_cvd()...")  # Debug statement
+                self.order_book_analysis.compute_cvd()
+
             else:
                 print(f"[Binance WS Error] Missing bids/asks in message: {data}")
 
