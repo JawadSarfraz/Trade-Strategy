@@ -48,33 +48,28 @@ class OrderBookAnalysis:
         """Returns bid-ask spread history as a DataFrame."""
         return pd.DataFrame(self.spread_history, columns=['Timestamp', 'Spread'])
 
-    def compute_cvd(self, order_book_buffer):
+    def compute_cvd(self):
         """Computes Cumulative Volume Delta (CVD) using stored order book updates."""
-        print("ASDSADADDSA")
+        print("[DEBUG] compute_cvd() is running...")  # Confirm execution
+
+        if not self.order_book_buffer:
+            print("[WARNING] No order book data available.")
+            return None
+
         cvd = 0
         cvd_values = []
 
-        for order_book in order_book_buffer:
-            if isinstance(order_book, dict):
-                order_book = pd.DataFrame({
-                    "Bid Price": [b[0] for b in order_book.get("b", [])],  
-                    "Bid Volume": [b[1] for b in order_book.get("b", [])],  
-                    "Ask Price": [a[0] for a in order_book.get("a", [])],  
-                    "Ask Volume": [a[1] for a in order_book.get("a", [])]  
-                })
-
-            if order_book.empty:
-                continue  
-
+        for order_book in self.order_book_buffer:
             bid_volume = order_book["Bid Volume"].sum()
             ask_volume = order_book["Ask Volume"].sum()
-            delta_v = bid_volume - ask_volume  
-            cvd += delta_v  
+            delta_v = bid_volume - ask_volume  # Compute Volume Delta (ΔV)
+            cvd += delta_v  # Accumulate ΔV to compute CVD
             cvd_values.append(cvd)
 
-        self.cvd_history = cvd_values
-        print(f"[CVD] Latest CVD Value: {cvd}")
+        self.cvd_history = cvd_values  # Store computed CVD history
+        print(f"[CVD] Latest CVD Value: {cvd}")  # Print latest CVD
         return cvd
+
 
     def get_cvd_history(self):
         """Returns CVD history as a DataFrame."""
