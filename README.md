@@ -1,69 +1,75 @@
-# Trading Bot
+# Binance Order Book Analysis
 
-📘 Binance Order Book Analysis - README
+This project collects, processes, and analyzes order book data from Binance using WebSockets. It calculates key metrics such as the **bid-ask spread** and **Cumulative Volume Delta (CVD)** to understand market liquidity and price movements.
 
-🚀 Project Overview
+---
 
-Project focuses on real-time order book tracking from Binance using WebSockets. Storing and analyzing order book data to detect market trends, liquidity shifts, and trading opportunities.
+## 📌 Features
 
-📡 Current Implementation
+- **Real-time Order Book Updates**: Fetches top 5 bid-ask levels continuously.
+- **Bid-Ask Spread Calculation**: Measures market liquidity.
+- **Cumulative Volume Delta (CVD)**: Tracks market buying/selling pressure.
+- **Data Storage & Analysis**: Rolling buffer of 100 snapshots.
 
-✅ 1. WebSocket Connection to Binance
+---
 
-Established a WebSocket connection to Binance Spot Order Book using the depth stream.
+## 🚀 How It Works
 
-Subscribes to BTC/USDT (but can be extended to other pairs).
+### 1️⃣ **Order Book Tracking** (`OrderBookTracker.py`)
 
-Continuously receives order book updates.
+- Stores the last **100** snapshots of order book updates.
+- Extracts **top 5 bid/ask levels** from the incoming data.
+- Converts updates into a structured **Pandas DataFrame**.
 
-✅ 2. Order Book Storage (Rolling Buffer)
+### 2️⃣ **Bid-Ask Spread Analysis** (`order_book_analysis.py`)
 
-Stores the last 100 updates in a rolling buffer using collections.deque.
+- Computes **spread** = `lowest_ask - highest_bid`.
+- Maintains a history of spread values.
+- Helps in liquidity analysis.
 
-Each update consists of top 5 bid/ask levels, totaling 1000 data points.
+### 3️⃣ **Cumulative Volume Delta (CVD)** (`order_book_analysis.py`)
 
-Data is structured using Pandas DataFrames for easy analysis.
+- **Formula**: `CVD = Σ (Bid Volume - Ask Volume)`
+- Aggregates volume deltas over time.
+- Indicates **buying vs. selling dominance** in the market.
 
-✅ 3. Computing the Bid-Ask Spread
+---
 
-Extracts the highest bid price and lowest ask price.
+## 🛠 Setup & Installation
 
-Computes the spread (Ask - Bid) to measure market liquidity.
+### 1️⃣ Install Dependencies
 
-Stores the spread history for trend analysis.
+```bash
+pip install -r requirements.txt
+```
 
-📊 Planned Next Steps
+### 2️⃣ Run WebSocket Listener
 
-Now that we have 100 updates stored, we can extract meaningful trading insights.
+```bash
+python main.py
+```
 
-🔥 1. Cumulative Volume Delta (CVD) Analysis
+---
 
-Measures market buying vs. selling pressure.
+## 📊 Example Output
 
-Tracks if more bids (buyers) or asks (sellers) dominate over time.
+```
+--- BINANCE Order Book ---
+Bid Price   Bid Volume   Ask Price   Ask Volume
+96534.65     3.51244    96534.66    1.52619
+96534.54     0.00008    96535.99    0.02952
+96534.40     0.00011    96536.00    0.04726
+...
 
-Use Case: Helps determine whether price is likely to rise (bullish) or fall (bearish).
+[SPREAD] Time: 1738982878.2227101, Bid: 96534.65, Ask: 96534.66, Spread: 0.01
+[DEBUG] Calling compute_cvd()...
+[CVD] Latest CVD Value: 6.13638
+```
 
-⚖️ 2. Order Flow Imbalance Detection
+---
 
-Detects shifts in market sentiment by comparing bid vs. ask volume across updates.
+## 🎯 Next Steps
 
-If bid volume is increasing faster than ask volume → buyers gaining strength 📈
-
-If ask volume is increasing faster than bid volume → sellers taking control 📉
-
-🐋 3. Whale Activity Detection
-
-Identifies large orders (buy/sell walls) that can move the market.
-
-Threshold: Orders greater than 5 BTC.
-
-Alerts when big buyers or sellers enter the market.
-
-📈 4. Predictive Price Movement Analysis
-
-Tracks bid/ask price trends over time to predict future movements.
-
-If bids are rising and asks are falling, it signals a bullish trend.
-
-If bids are falling and asks are rising, it signals a bearish trend.
+- ✅ Store **CVD values** for historical analysis
+- ✅ Use **CVD for trading signals** (buy/sell pressure)
+- ✅ **Plot CVD trends** to visualize market dominance
