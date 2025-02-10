@@ -12,7 +12,8 @@ class OrderBookAnalysis:
     def __init__(self, order_book_buffer=None):
         self.order_book_buffer = order_book_buffer
         self.spread_history = []  # Store bid-ask spreads
-        self.cvd_history = self.load_cvd_history()  # Load stored CVD
+        self.cvd_history = []
+        self.price_history = []  # Store price data alongside CVD
 
     def compute_bid_ask_spread(self, order_book):
         """Computes the bid-ask spread and logs it over time."""
@@ -47,7 +48,7 @@ class OrderBookAnalysis:
         """Returns bid-ask spread history as a DataFrame."""
         return pd.DataFrame(self.spread_history, columns=['Timestamp', 'Spread'])
 
-    def compute_cvd(self):
+    def compute_cvd(self, latest_price):
         """Computes Cumulative Volume Delta (CVD) and stores it in JSON."""
         print("[DEBUG] compute_cvd() is running...")
 
@@ -55,7 +56,8 @@ class OrderBookAnalysis:
             print("[WARNING] No order book data available.")
             return None
 
-        cvd = self.cvd_history[-1]["cvd"] if self.cvd_history else 0  # Start from last CVD
+        #cvd = self.cvd_history[-1]["cvd"] if self.cvd_history else 0  # Start from last CVD
+        cvd = 0
         cvd_values = []
 
         for order_book in self.order_book_buffer:
@@ -63,11 +65,14 @@ class OrderBookAnalysis:
             ask_volume = order_book["Ask Volume"].sum()
             delta_v = bid_volume - ask_volume  # Compute Volume Delta (ΔV)
             cvd += delta_v  # Accumulate ΔV to compute CVD
-            cvd_values.append({"timestamp": time.time(), "cvd": cvd})
+            cvd_values.append({"timestamp": time.time(), "cvd": cvd, "price": latest_price})
 
-        self.cvd_history.extend(cvd_values)  # Store computed CVD history
-        self.save_cvd_history()  # Save to JSON
-        print(f"[CVD] Latest CVD Value: {cvd}")
+        self.cvd_history = cvd_values  # Store computed CVD and price history
+        # Save data to JSON
+        with open("data/cvd_data.json", "w") as f:
+            json.dump(self.cvd_history, f, indent=4)
+
+        print(f"[CVD] Latest CVD: {cvd}, Price: {latest_price}")
         return cvd
 
     def get_cvd_history(self):
