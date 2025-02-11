@@ -2,15 +2,20 @@ import json
 import pandas as pd
 import matplotlib.pyplot as plt
 import os
+from datetime import datetime
 
 class CVDAnalysis:
     """Class to analyze Cumulative Volume Delta (CVD) and price data."""
 
-    def __init__(self, cvd_file="data/cvd_data.json", price_file="data/price_data.json"):
+    def __init__(self, cvd_file="data/cvd_data.json", price_file="data/price_data.json", plot_dir="plots"):
         self.cvd_file = cvd_file
         self.price_file = price_file
+        self.plot_dir = plot_dir  # Directory to save plots
         self.cvd_data = []
         self.price_data = []
+
+        # Ensure plot directory exists
+        os.makedirs(self.plot_dir, exist_ok=True)
 
     def load_data(self):
         """Loads CVD and price data from JSON files."""
@@ -31,19 +36,22 @@ class CVDAnalysis:
         cvd_df = pd.DataFrame(self.cvd_data)
         price_df = pd.DataFrame(self.price_data)
 
-        # Ensure timestamps are sorted and convert them to a readable format
+        # Ensure timestamps are sorted
         cvd_df = cvd_df.sort_values(by="timestamp")
         price_df = price_df.sort_values(by="timestamp")
 
         return cvd_df, price_df
 
     def plot_cvd_and_price(self, cvd_df, price_df):
-        """Plots CVD and price trends in a single figure with two subplots."""
+        """Plots CVD and price trends and saves them as images."""
         if cvd_df is None or price_df is None:
             print("[WARNING] No data available for plotting.")
             return
 
-        fig, ax1 = plt.subplots(2, 1, figsize=(10, 10))  # Two subplots
+        timestamp_str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")  # Format timestamp for filename
+
+        # Create figure and subplots
+        fig, ax1 = plt.subplots(2, 1, figsize=(12, 8))
 
         # Plot CVD
         ax1[0].plot(cvd_df["timestamp"], cvd_df["cvd"], label="CVD", color="blue")
@@ -62,6 +70,13 @@ class CVDAnalysis:
         ax1[1].grid()
 
         plt.tight_layout()
+
+        # Save the plot
+        plot_filename = f"{self.plot_dir}/cvd_vs_price_{timestamp_str}.png"
+        plt.savefig(plot_filename)
+        print(f"[INFO] Plot saved as {plot_filename}")
+
+        # Show the plot
         plt.show()
 
     def run_analysis(self):
