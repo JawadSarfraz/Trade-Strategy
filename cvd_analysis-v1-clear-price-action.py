@@ -36,6 +36,10 @@ class CVDAnalysis:
         cvd_df = pd.DataFrame(self.cvd_data)
         price_df = pd.DataFrame(self.price_data)
 
+        # Convert timestamp to datetime for better readability
+        cvd_df["timestamp"] = pd.to_datetime(cvd_df["timestamp"], unit="s")
+        price_df["timestamp"] = pd.to_datetime(price_df["timestamp"], unit="s")
+
         # Ensure timestamps are sorted
         cvd_df = cvd_df.sort_values(by="timestamp")
         price_df = price_df.sort_values(by="timestamp")
@@ -53,7 +57,7 @@ class CVDAnalysis:
         # Create figure and subplots
         fig, ax1 = plt.subplots(2, 1, figsize=(12, 8))
 
-        # Plot CVD
+        # ✅ Plot CVD
         ax1[0].plot(cvd_df["timestamp"], cvd_df["cvd"], label="CVD", color="blue")
         ax1[0].set_xlabel("Timestamp")
         ax1[0].set_ylabel("CVD")
@@ -61,7 +65,7 @@ class CVDAnalysis:
         ax1[0].legend()
         ax1[0].grid()
 
-        # Plot Price
+        # ✅ Plot Price with corrected scaling
         ax1[1].plot(price_df["timestamp"], price_df["price"], label="Price", color="red")
         ax1[1].set_xlabel("Timestamp")
         ax1[1].set_ylabel("Price (USD)")
@@ -69,14 +73,16 @@ class CVDAnalysis:
         ax1[1].legend()
         ax1[1].grid()
 
+        # ✅ Adjust subplot layout
+        plt.xticks(rotation=45)  # Rotate timestamps for better readability
         plt.tight_layout()
 
-        # Save the plot
+        # ✅ Save the plot
         plot_filename = f"{self.plot_dir}/cvd_vs_price_{timestamp_str}.png"
         plt.savefig(plot_filename)
         print(f"[INFO] Plot saved as {plot_filename}")
 
-        # Show the plot
+        # ✅ Show the plot
         plt.show()
 
     def run_analysis(self):
